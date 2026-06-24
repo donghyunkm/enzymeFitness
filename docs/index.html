@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.56">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Donghyun Kim">
+
+<title>Predicting enzyme fitness from limited experimental data – enzymeFitness</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">enzymeFitness</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="https://donghyunkm.github.io/"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#the-challenge-learning-from-a-small-enzyme-fitness-dataset" id="toc-the-challenge-learning-from-a-small-enzyme-fitness-dataset" class="nav-link active" data-scroll-target="#the-challenge-learning-from-a-small-enzyme-fitness-dataset">The challenge: learning from a small enzyme fitness dataset</a></li>
+  <li><a href="#why-use-protein-language-models" id="toc-why-use-protein-language-models" class="nav-link" data-scroll-target="#why-use-protein-language-models">Why use protein language models?</a></li>
+  <li><a href="#baseline-approach-direct-fitness-regression" id="toc-baseline-approach-direct-fitness-regression" class="nav-link" data-scroll-target="#baseline-approach-direct-fitness-regression">Baseline approach: direct fitness regression</a></li>
+  <li><a href="#reframing-the-task-ranking-instead-of-regression" id="toc-reframing-the-task-ranking-instead-of-regression" class="nav-link" data-scroll-target="#reframing-the-task-ranking-instead-of-regression">Reframing the task: ranking instead of regression</a></li>
+  <li><a href="#pairwise-ranking-as-binary-classification" id="toc-pairwise-ranking-as-binary-classification" class="nav-link" data-scroll-target="#pairwise-ranking-as-binary-classification">Pairwise ranking as binary classification</a></li>
+  <li><a href="#listwise-ranking-with-listmle" id="toc-listwise-ranking-with-listmle" class="nav-link" data-scroll-target="#listwise-ranking-with-listmle">Listwise ranking with ListMLE</a></li>
+  <li><a href="#effect-of-list-size" id="toc-effect-of-list-size" class="nav-link" data-scroll-target="#effect-of-list-size">Effect of list size</a></li>
+  <li><a href="#improving-generalization-with-lora" id="toc-improving-generalization-with-lora" class="nav-link" data-scroll-target="#improving-generalization-with-lora">Improving generalization with LoRA</a></li>
+  <li><a href="#increasing-the-number-of-training-lists" id="toc-increasing-the-number-of-training-lists" class="nav-link" data-scroll-target="#increasing-the-number-of-training-lists">Increasing the number of training lists</a></li>
+  <li><a href="#main-takeaways" id="toc-main-takeaways" class="nav-link" data-scroll-target="#main-takeaways">Main takeaways</a></li>
+  <li><a href="#future-directions" id="toc-future-directions" class="nav-link" data-scroll-target="#future-directions">Future directions</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Predicting enzyme fitness from limited experimental data</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Donghyun Kim </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Directed evolution is one of the most powerful strategies for engineering proteins with improved function. In a typical directed evolution workflow, researchers begin with a parent enzyme, generate large libraries of mutated sequences through random mutagenesis and related diversification methods, experimentally screen those variants, and select improved candidates for additional rounds of optimization. Over repeated cycles, this process can produce enzymes with improved catalytic fitness, activity, stability, specificity, or other desired properties.</p>
+<p>However, directed evolution is experimentally expensive. Each candidate variant must be synthesized, expressed, and assayed, limiting the number of sequences that can be evaluated in practice. This creates a central challenge for protein engineering: how can researchers identify the most promising enzyme variants when only a small amount of experimental fitness data is available?</p>
+<p>Machine-learning models offer a potential solution by learning relationships between protein sequence and catalytic fitness, then using those predictions to prioritize variants for experimental testing. By focusing experimental effort on the most promising candidates, these models could increase the efficiency of directed-evolution campaigns.</p>
+<p>We explore that question using protein language models—specifically ESM2—to predict and rank enzyme variants from limited fitness measurements.</p>
+<section id="the-challenge-learning-from-a-small-enzyme-fitness-dataset" class="level2">
+<h2 class="anchored" data-anchor-id="the-challenge-learning-from-a-small-enzyme-fitness-dataset">The challenge: learning from a small enzyme fitness dataset</h2>
+<p>The dataset used here contains 242 protein sequences, each 206 amino acids long. Each sequence is associated with an experimentally measured fitness value. The fitness values span a wide range, from 2,353 to 2,628,389, with a mean of 203,722 and a standard deviation of 327,510. Before model training, all fitness values were standardized using z-score normalization.</p>
+<p>This is a small dataset by modern deep learning standards. Protein language models are usually pretrained on millions of sequences, but the downstream supervised dataset here contains only a few hundred labeled examples. That mismatch makes the task difficult: the model must adapt to a specific enzyme fitness landscape without overfitting to the limited experimental measurements.</p>
+<p>The first question was whether a pretrained protein language model could be fine-tuned directly to predict fitness values.</p>
+</section>
+<section id="why-use-protein-language-models" class="level2">
+<h2 class="anchored" data-anchor-id="why-use-protein-language-models">Why use protein language models?</h2>
+<p>Protein language models are transformer-based models trained on large collections of protein sequences. Similar to how natural language models learn patterns in text, protein language models learn statistical and biological patterns in amino acid sequences. These learned representations can capture information related to protein structure, evolution, and function.</p>
+<p>The ESM model family is one example of this approach. ESM models learn from massive protein sequence datasets and can be used for tasks such as representation learning, structure prediction, mutation-effect prediction, and protein design. Here, I focused on ESM2, a transformer-based protein language model pretrained with a masked language modeling objective.</p>
+<p>ESM2 is useful here because it already contains broad biological knowledge from pretraining. Rather than training a model from scratch on only 242 enzyme variants, fine-tuning ESM2 allows the model to start from sequence representations that already encode general protein patterns.</p>
+</section>
+<section id="baseline-approach-direct-fitness-regression" class="level2">
+<h2 class="anchored" data-anchor-id="baseline-approach-direct-fitness-regression">Baseline approach: direct fitness regression</h2>
+<figure align="center" class="figure">
+<img src="regression.png" width="800" class="figure-img">
+<figcaption>
+Regression model architecture
+</figcaption>
+</figure>
+<p>The most straightforward approach is regression. In this setup, each protein variant is passed into ESM2. The model produces per-residue representations, which are pooled into a sequence-level representation. A regression head then maps this representation to a predicted fitness value.</p>
+<p>The training objective is mean squared error between the predicted standardized fitness and the true standardized fitness. Conceptually, this asks the model to learn an absolute mapping from sequence to fitness.</p>
+<div class="columns">
+<div class="column" style="width:65%;">
+<p><img src="regressionresults.png" class="img-fluid" data-fig-cap="Regression model does not do so well" width="400"></p>
+</div><div class="column" style="width:35%;">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Test MAE</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.3077</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>However, the regression model did not perform especially well. On the test set, the model achieved a mean absolute error of 0.3077 on standardized fitness values, with a modest relationship between predicted and true fitness. This result suggested that directly predicting exact fitness values may be too difficult in the limited-data setting.</p>
+<p>There are several reasons why regression can be challenging here. First, the model must learn not just which variants are better or worse, but the precise magnitude of their fitness differences. Second, experimental fitness values can span a large dynamic range, making absolute prediction sensitive to outliers. Third, with only a small number of labeled examples, the model may not have enough data to learn a calibrated continuous fitness function.</p>
+<p>For many protein engineering workflows, however, exact fitness values are not always necessary. In directed evolution, the key question is often simpler: which variants should we prioritize next?</p>
+<p>That motivates a shift from predicting fitness values to ranking sequences.</p>
+</section>
+<section id="reframing-the-task-ranking-instead-of-regression" class="level2">
+<h2 class="anchored" data-anchor-id="reframing-the-task-ranking-instead-of-regression">Reframing the task: ranking instead of regression</h2>
+<p>Rather than asking the model to predict the exact fitness of each variant, we can ask it to rank variants by fitness. This reframing is closer to the practical goal of directed evolution. If a model can reliably identify which variants are more promising than others, it can help guide experimental screening even if its absolute fitness predictions are imperfect.</p>
+<p>Ranking losses are also appealing in small-data settings. They focus on relative ordering rather than exact numerical prediction, which can make the learning problem easier. Instead of requiring the model to match a specific standardized fitness value, the model only needs to assign higher scores to variants with higher measured fitness.</p>
+<p>We explored ranking in two stages: pairwise binary classification and listwise ranking with ListMLE.</p>
+</section>
+<section id="pairwise-ranking-as-binary-classification" class="level2">
+<h2 class="anchored" data-anchor-id="pairwise-ranking-as-binary-classification">Pairwise ranking as binary classification</h2>
+<figure align="center" class="figure">
+<img src="binaryclassification.png" width="800" class="figure-img">
+<figcaption>
+Binary classification model architecture
+</figcaption>
+</figure>
+<p>The first ranking formulation compares pairs of sequences. Given two variants, sequence A and sequence B, the model predicts which one has higher fitness.</p>
+<p>To do this, both sequences are passed through ESM2. The model computes log-likelihood-style sequence scores based on the amino acids in each variant. The difference between the two sequence scores is then used as input to a logistic regression layer, which predicts whether sequence A or sequence B is preferred.</p>
+<p>This converts the problem into binary classification. The model no longer needs to predict exact fitness values. It only needs to decide which sequence in a pair is better.</p>
+<div class="columns">
+<div class="column" style="width:75%;">
+<p><img src="binaryresults.png" class="img-fluid" data-fig-cap="Binary classification model results" width="800"></p>
+</div><div class="column" style="width:25%;">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Test Accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.787</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>This pairwise model performed better than the direct regression approach. On the test set, it achieved an accuracy of 0.787. The confusion matrix showed that the model was able to classify both directions of pairwise comparisons reasonably well, suggesting that the ranking formulation was more aligned with the available data.</p>
+<p>However, pairwise comparisons still have limitations. Protein engineering rarely requires choosing between only two variants. More often, we want to rank a set of candidates and identify the best variants from a larger pool. This motivated a listwise ranking approach.</p>
+</section>
+<section id="listwise-ranking-with-listmle" class="level2">
+<h2 class="anchored" data-anchor-id="listwise-ranking-with-listmle">Listwise ranking with ListMLE</h2>
+<figure align="center" class="figure">
+<img src="listmle.png" width="800" class="figure-img">
+<figcaption>
+ListMLE loss model architecture
+</figcaption>
+</figure>
+<p>The next model was trained using ListMLE, a listwise ranking loss. Instead of comparing only two sequences at a time, the model receives a list of variants and learns to rank the entire list according to ground-truth fitness.</p>
+<p>For each sequence in a list, ESM2 produces per-residue log probabilities for the observed amino acids. These log probabilities are summed across residues to produce a single sequence score. Higher scores correspond to higher predicted rank. The ListMLE objective then compares the predicted ordering against the true fitness-based ordering.</p>
+<p>This setup directly trains the model to assign high scores to high-fitness sequences and low scores to low-fitness sequences. It also matches the downstream goal more closely: prioritize the best candidates from a set of possible variants.</p>
+<p>The ranking model was evaluated with three metrics. Spearman’s rank correlation measures how well the predicted ranking matches the true ranking. Pairwise accuracy measures how often the model orders pairs of variants correctly. Top-1 accuracy measures how often the model correctly identifies the best sequence in a list.</p>
+<div class="columns">
+<div class="column" style="width:75%;">
+<p><img src="rankingmodel.png" class="img-fluid" data-fig-cap="Ranking model results" width="800"></p>
+</div><div class="column" style="width:25%;">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Spearman</th>
+<th>Pairwise accuracy</th>
+<th>Top1 accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.578 ± 0.423</td>
+<td>0.753</td>
+<td>0.622</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>With list size 4, the ranking model achieved a Spearman correlation of 0.578 ± 0.423, pairwise accuracy of 0.753, and top-1 accuracy of 0.622. These results indicate that the model learned meaningful ranking structure, although there was still substantial variability across lists.</p>
+</section>
+<section id="effect-of-list-size" class="level2">
+<h2 class="anchored" data-anchor-id="effect-of-list-size">Effect of list size</h2>
+<p>I also tested ranking models with different list sizes. The goal was to understand whether training on larger candidate sets improves the model’s ability to learn relative fitness.</p>
+<figure align="center" class="figure">
+<img src="listsize.png" width="800" class="figure-img">
+<figcaption>
+Ranking model with different list sizes
+</figcaption>
+</figure>
+<p>The model was evaluated with list sizes of 4, 8, and 16. Across these settings, performance remained broadly similar, with some differences across metrics.</p>
+<p>I expected performance to decrease substantially as the list size increased, since ranking larger lists is a more difficult task and yields fewer unique training lists from a fixed set of sequences. However, the results are also intuitive because increasing the list size gives each training example substantially more ranking information. A list of N sequences contains N choose 2 pairwise ordering relationships, so larger lists provide richer supervision and may help the model learn a more reliable global ordering of sequence fitness.</p>
+</section>
+<section id="improving-generalization-with-lora" class="level2">
+<h2 class="anchored" data-anchor-id="improving-generalization-with-lora">Improving generalization with LoRA</h2>
+<p>A major concern in this work is overfitting. Full fine-tuning updates all model parameters, which can be risky when the supervised dataset is small. ESM2 contains millions of parameters, while the dataset contains only 242 labeled sequences. Updating too many parameters can allow the model to memorize the training data instead of learning a generalizable fitness signal.</p>
+<p>To address this, I tested LoRA, or low-rank adaptation. LoRA freezes the pretrained model weights and learns small trainable low-rank matrices for selected layers. Instead of learning a full weight update, LoRA parameterizes the update as a product of two smaller matrices. This greatly reduces the number of trainable parameters.</p>
+<p>LoRA is well suited for low-data regimes because it restricts the number of parameters being optimized. This can reduce overfitting while still allowing the model to adapt to the target task.</p>
+<figure align="center" class="figure">
+<img src="lora.png" width="800" class="figure-img">
+<figcaption>
+LoRA helps boost model performance
+</figcaption>
+</figure>
+<p>In the experiments, LoRA improved ranking performance. The full fine-tuning baseline used 100% of the trainable parameters and achieved a Spearman correlation of 0.578, pairwise accuracy of 0.753, and top-1 accuracy of 0.622. In contrast, LoRA with rank 4 used only 0.6096% of the trainable parameters and achieved substantially better performance, including a Spearman correlation of 0.827, pairwise accuracy of 0.882, and top-1 accuracy of 0.867.</p>
+<p>This was one of the strongest results in the project. It suggests that, for limited enzyme fitness data, smaller and more constrained fine-tuning can outperform full fine-tuning. Rather than giving the model too much flexibility, LoRA appears to help preserve useful pretrained protein knowledge while adapting only the most relevant parts of the model.</p>
+<p>Interestingly, different LoRA ranks produced different results. Rank 4 performed best among the tested settings, outperforming ranks 8, 2, and 1 in the presented comparison. This suggests that there is an optimal amount of adaptation: too much trainable capacity can overfit, while too little may not adapt enough to the enzyme-specific task.</p>
+</section>
+<section id="increasing-the-number-of-training-lists" class="level2">
+<h2 class="anchored" data-anchor-id="increasing-the-number-of-training-lists">Increasing the number of training lists</h2>
+<p>Another way to improve model performance is to increase the number of training examples. Because the ranking model is trained on lists of variants, the number of possible training lists can be expanded by sampling more combinations from the available sequences.</p>
+<figure align="center" class="figure">
+<img src="1mil.png" width="800" class="figure-img">
+<figcaption>
+Ranking model trained with more lists
+</figcaption>
+</figure>
+<p>When the model was trained with more lists, performance improved relative to the smaller training set. The strongest result shown was from a model trained with 10,000 lists using LoRA rank 4, which achieved higher Spearman correlation, pairwise accuracy, and top-1 accuracy than the baseline trained with 10,000 lists without LoRA.</p>
+<p>However, increasing to 1 million sampled lists did not clearly improve performance further. This may be because the additional lists are not fully independent: they are recombinations of the same underlying 242 sequences. Once the model has seen enough relative comparisons among the available variants, simply sampling more lists may provide diminishing returns.</p>
+<p>This highlights an important distinction between more training examples and more biological information. Sampling more lists can expose the model to more pairwise and listwise relationships, but it cannot fully replace new experimental measurements from additional variants.</p>
+</section>
+<section id="main-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="main-takeaways">Main takeaways</h2>
+<p>The results from this project suggest several important lessons for enzyme fitness prediction in low-data settings.</p>
+<p>First, direct regression may not be the best objective when only limited experimental data is available. Predicting exact standardized fitness values is difficult, especially when measurements span a wide range and the dataset is small.</p>
+<p>Second, ranking objectives better match the needs of directed evolution. In many protein engineering workflows, the most important goal is not to perfectly predict fitness, but to prioritize the most promising variants for the next round of experiments.</p>
+<p>Third, listwise ranking with ESM2 can learn meaningful fitness orderings. By scoring sequences and optimizing their predicted order with ListMLE, the model can capture useful relative fitness information.</p>
+<p>Fourth, parameter-efficient fine-tuning is especially valuable in this setting. LoRA improved performance while training less than 1% of the model parameters. This suggests that preserving pretrained protein knowledge while making small task-specific updates can be more effective than full fine-tuning.</p>
+<p>Finally, more sampled ranking lists can help, but only up to a point. To continue improving performance, the model will likely need more experimental data, data from related protein fitness datasets, or stronger benchmarking against other specialized protein fitness prediction methods.</p>
+</section>
+<section id="future-directions" class="level2">
+<h2 class="anchored" data-anchor-id="future-directions">Future directions</h2>
+<p>The next step is to train and validate these models with more data. This includes both newly generated experimental data and relevant datasets available online. More diverse fitness measurements would make it possible to test whether the ranking approach generalizes beyond the current enzyme system.</p>
+<p>Another important direction is benchmarking against models developed by other groups, such as Primo and FSFP. Comparing ESM2-based ranking models against specialized fitness prediction methods will clarify where this approach performs well and where further improvements are needed.</p>
+<p>Overall, this project shows that the choice of training objective matters. When experimental data is limited, ranking enzyme variants can be more effective than predicting exact fitness values. Combined with LoRA, ESM2 provides a promising framework for guiding directed evolution by prioritizing high-fitness variants from small datasets.</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
