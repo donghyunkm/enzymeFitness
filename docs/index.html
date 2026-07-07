@@ -21,7 +21,27 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-</style>
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
 
 
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
@@ -68,6 +88,35 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -110,7 +159,10 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#the-challenge-learning-from-a-small-enzyme-fitness-dataset" id="toc-the-challenge-learning-from-a-small-enzyme-fitness-dataset" class="nav-link active" data-scroll-target="#the-challenge-learning-from-a-small-enzyme-fitness-dataset">The challenge: learning from a small enzyme fitness dataset</a></li>
-  <li><a href="#why-use-protein-language-models" id="toc-why-use-protein-language-models" class="nav-link" data-scroll-target="#why-use-protein-language-models">Why use protein language models?</a></li>
+  <li><a href="#why-use-protein-language-models" id="toc-why-use-protein-language-models" class="nav-link" data-scroll-target="#why-use-protein-language-models">Why use protein language models?</a>
+  <ul class="collapse">
+  <li><a href="#esm-2-overview" id="toc-esm-2-overview" class="nav-link" data-scroll-target="#esm-2-overview">ESM-2 Overview</a></li>
+  </ul></li>
   <li><a href="#baseline-approach-direct-fitness-regression" id="toc-baseline-approach-direct-fitness-regression" class="nav-link" data-scroll-target="#baseline-approach-direct-fitness-regression">Baseline approach: direct fitness regression</a></li>
   <li><a href="#reframing-the-task-ranking-instead-of-regression" id="toc-reframing-the-task-ranking-instead-of-regression" class="nav-link" data-scroll-target="#reframing-the-task-ranking-instead-of-regression">Reframing the task: ranking instead of regression</a></li>
   <li><a href="#pairwise-ranking-as-binary-classification" id="toc-pairwise-ranking-as-binary-classification" class="nav-link" data-scroll-target="#pairwise-ranking-as-binary-classification">Pairwise ranking as binary classification</a></li>
@@ -153,11 +205,12 @@ ul.task-list li input[type="checkbox"] {
 
 <p>Directed evolution is one of the most powerful strategies for engineering proteins with improved function. In a typical directed evolution workflow, researchers begin with a parent enzyme, generate large libraries of mutated sequences through random mutagenesis and related diversification methods, experimentally screen those variants, and select improved candidates for additional rounds of optimization. Over repeated cycles, this process can produce enzymes with improved catalytic fitness, activity, stability, specificity, or other desired properties.</p>
 <p>However, directed evolution is experimentally expensive. Each candidate variant must be synthesized, expressed, and assayed, limiting the number of sequences that can be evaluated in practice. This creates a central challenge for protein engineering: how can researchers identify the most promising enzyme variants when only a small amount of experimental fitness data is available?</p>
-<p>Machine-learning models offer a potential solution by learning relationships between protein sequence and catalytic fitness, then using those predictions to prioritize variants for experimental testing. By focusing experimental effort on the most promising candidates, these models could increase the efficiency of directed-evolution campaigns.</p>
+<p>Machine-learning models offer a potential solution by learning relationships between protein sequence and catalytic fitness, then using those predictions to prioritize variants for experimental testing. By focusing experimental effort on the most promising candidates, these models could increase the efficiency of directed-evolution campaigns <span class="citation" data-cites="wu2019machine">(<a href="#ref-wu2019machine" role="doc-biblioref">Wu et al. 2019</a>)</span>.</p>
 <p>We explore that question using protein language models—specifically ESM2—to predict and rank enzyme variants from limited fitness measurements.</p>
 <section id="the-challenge-learning-from-a-small-enzyme-fitness-dataset" class="level2">
 <h2 class="anchored" data-anchor-id="the-challenge-learning-from-a-small-enzyme-fitness-dataset">The challenge: learning from a small enzyme fitness dataset</h2>
-<p>The dataset used here contains 242 protein sequences, each 206 amino acids long. Each sequence is associated with an experimentally measured fitness value. The fitness values span a wide range, from 2,353 to 2,628,389, with a mean of 203,722 and a standard deviation of 327,510. Before model training, all fitness values were standardized using z-score normalization.</p>
+<p>The dataset was given to us by the The Athavale Group at UCLA.</p>
+<p>The dataset contains 242 protein sequences, each 206 amino acids long. Each sequence is paired with an experimentally measured fitness value, defined here as its raw mass spectrometry count. The fitness values span a wide range, from 2,353 to 2,628,389, with a mean of 203,722 and a standard deviation of 327,510. Before model training, all fitness values were standardized using z-score normalization.</p>
 <p>This is a small dataset by modern deep learning standards. Protein language models are usually pretrained on millions of sequences, but the downstream supervised dataset here contains only a few hundred labeled examples. That mismatch makes the task difficult: the model must adapt to a specific enzyme fitness landscape without overfitting to the limited experimental measurements.</p>
 <p>The first question was whether a pretrained protein language model could be fine-tuned directly to predict fitness values.</p>
 </section>
@@ -165,7 +218,22 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="why-use-protein-language-models">Why use protein language models?</h2>
 <p>Protein language models are transformer-based models trained on large collections of protein sequences. Similar to how natural language models learn patterns in text, protein language models learn statistical and biological patterns in amino acid sequences. These learned representations can capture information related to protein structure, evolution, and function.</p>
 <p>The ESM model family is one example of this approach. ESM models learn from massive protein sequence datasets and can be used for tasks such as representation learning, structure prediction, mutation-effect prediction, and protein design. Here, I focused on ESM2, a transformer-based protein language model pretrained with a masked language modeling objective.</p>
+<section id="esm-2-overview" class="level3">
+<h3 class="anchored" data-anchor-id="esm-2-overview">ESM-2 Overview</h3>
+<p>Let a protein sequence be denoted by <span class="math inline">\(x = (x_1, x_2, \ldots, x_L)\)</span>, where each <span class="math inline">\(x_i\)</span> is an amino acid token. In masked language modeling (MLM), a subset of residue positions <span class="math inline">\(M \subseteq {1,\ldots,L}\)</span> is selected and masked to produce a corrupted input sequence <span class="math inline">\(\tilde{x}\)</span>. ESM-2 is trained to predict the original amino acids at these masked positions using the remaining sequence context. For each masked residue <span class="math inline">\(i \in M\)</span>, the model learns a conditional distribution <span class="math inline">\(p_\theta(x_i \mid \tilde{x})\)</span>.</p>
+<p>The training objective minimizes the negative log-likelihood of the true masked residues:</p>
+<p><span class="math display">\[
+\mathcal{L}_{\mathrm{MLM}}(\theta)
+=
+-\mathbb{E}_{x \sim \mathcal{D},\, M}
+\left[
+\sum_{i \in M}
+\log p_\theta(x_i \mid \tilde{x})
+\right].
+\]</span></p>
+<p>By repeatedly predicting masked amino acids from both local and long-range sequence context, ESM-2 learns representations that capture statistical patterns in protein sequences, including constraints related to structure and function <span class="citation" data-cites="lin2023evolutionary">(<a href="#ref-lin2023evolutionary" role="doc-biblioref">Lin et al. 2023</a>)</span>.</p>
 <p>ESM2 is useful here because it already contains broad biological knowledge from pretraining. Rather than training a model from scratch on only 242 enzyme variants, fine-tuning ESM2 allows the model to start from sequence representations that already encode general protein patterns.</p>
+</section>
 </section>
 <section id="baseline-approach-direct-fitness-regression" class="level2">
 <h2 class="anchored" data-anchor-id="baseline-approach-direct-fitness-regression">Baseline approach: direct fitness regression</h2>
@@ -177,23 +245,20 @@ Regression model architecture
 </figure>
 <p>The most straightforward approach is regression. In this setup, each protein variant is passed into ESM2. The model produces per-residue representations, which are pooled into a sequence-level representation. A regression head then maps this representation to a predicted fitness value.</p>
 <p>The training objective is mean squared error between the predicted standardized fitness and the true standardized fitness. Conceptually, this asks the model to learn an absolute mapping from sequence to fitness.</p>
-<div class="columns">
-<div class="column" style="width:65%;">
+<div style="text-align: center;">
 <p><img src="regressionresults.png" class="img-fluid" data-fig-cap="Regression model does not do so well" width="400"></p>
-</div><div class="column" style="width:35%;">
 <table class="caption-top table">
 <thead>
 <tr class="header">
-<th>Test MAE</th>
+<th style="text-align: center;">Test MAE</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>0.3077</td>
+<td style="text-align: center;">0.3077</td>
 </tr>
 </tbody>
 </table>
-</div>
 </div>
 <p>However, the regression model did not perform especially well. On the test set, the model achieved a mean absolute error of 0.3077 on standardized fitness values, with a modest relationship between predicted and true fitness. This result suggested that directly predicting exact fitness values may be too difficult in the limited-data setting.</p>
 <p>There are several reasons why regression can be challenging here. First, the model must learn not just which variants are better or worse, but the precise magnitude of their fitness differences. Second, experimental fitness values can span a large dynamic range, making absolute prediction sensitive to outliers. Third, with only a small number of labeled examples, the model may not have enough data to learn a calibrated continuous fitness function.</p>
@@ -217,23 +282,20 @@ Binary classification model architecture
 <p>The first ranking formulation compares pairs of sequences. Given two variants, sequence A and sequence B, the model predicts which one has higher fitness.</p>
 <p>To do this, both sequences are passed through ESM2. The model computes log-likelihood-style sequence scores based on the amino acids in each variant. The difference between the two sequence scores is then used as input to a logistic regression layer, which predicts whether sequence A or sequence B is preferred.</p>
 <p>This converts the problem into binary classification. The model no longer needs to predict exact fitness values. It only needs to decide which sequence in a pair is better.</p>
-<div class="columns">
-<div class="column" style="width:75%;">
+<div style="text-align: center;">
 <p><img src="binaryresults.png" class="img-fluid" data-fig-cap="Binary classification model results" width="800"></p>
-</div><div class="column" style="width:25%;">
 <table class="caption-top table">
 <thead>
 <tr class="header">
-<th>Test Accuracy</th>
+<th style="text-align: center;">Test Accuracy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>0.787</td>
+<td style="text-align: center;">0.787</td>
 </tr>
 </tbody>
 </table>
-</div>
 </div>
 <p>This pairwise model performed better than the direct regression approach. On the test set, it achieved an accuracy of 0.787. The confusion matrix showed that the model was able to classify both directions of pairwise comparisons reasonably well, suggesting that the ranking formulation was more aligned with the available data.</p>
 <p>However, pairwise comparisons still have limitations. Protein engineering rarely requires choosing between only two variants. More often, we want to rank a set of candidates and identify the best variants from a larger pool. This motivated a listwise ranking approach.</p>
@@ -250,27 +312,24 @@ ListMLE loss model architecture
 <p>For each sequence in a list, ESM2 produces per-residue log probabilities for the observed amino acids. These log probabilities are summed across residues to produce a single sequence score. Higher scores correspond to higher predicted rank. The ListMLE objective then compares the predicted ordering against the true fitness-based ordering.</p>
 <p>This setup directly trains the model to assign high scores to high-fitness sequences and low scores to low-fitness sequences. It also matches the downstream goal more closely: prioritize the best candidates from a set of possible variants.</p>
 <p>The ranking model was evaluated with three metrics. Spearman’s rank correlation measures how well the predicted ranking matches the true ranking. Pairwise accuracy measures how often the model orders pairs of variants correctly. Top-1 accuracy measures how often the model correctly identifies the best sequence in a list.</p>
-<div class="columns">
-<div class="column" style="width:75%;">
+<div style="text-align: center;">
 <p><img src="rankingmodel.png" class="img-fluid" data-fig-cap="Ranking model results" width="800"></p>
-</div><div class="column" style="width:25%;">
 <table class="caption-top table">
 <thead>
 <tr class="header">
-<th>Spearman</th>
-<th>Pairwise accuracy</th>
-<th>Top1 accuracy</th>
+<th style="text-align: center;">Spearman</th>
+<th style="text-align: center;">Pairwise accuracy</th>
+<th style="text-align: center;">Top1 accuracy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>0.578 ± 0.423</td>
-<td>0.753</td>
-<td>0.622</td>
+<td style="text-align: center;">0.578 ± 0.423</td>
+<td style="text-align: center;">0.753</td>
+<td style="text-align: center;">0.622</td>
 </tr>
 </tbody>
 </table>
-</div>
 </div>
 <p>With list size 4, the ranking model achieved a Spearman correlation of 0.578 ± 0.423, pairwise accuracy of 0.753, and top-1 accuracy of 0.622. These results indicate that the model learned meaningful ranking structure, although there was still substantial variability across lists.</p>
 </section>
@@ -330,9 +389,17 @@ Ranking model trained with more lists
 <p>Overall, this project shows that the choice of training objective matters. When experimental data is limited, ranking enzyme variants can be more effective than predicting exact fitness values. Combined with LoRA, ESM2 provides a promising framework for guiding directed evolution by prioritizing high-fitness variants from small datasets.</p>
 
 
+
 </section>
 
-</main> <!-- /main -->
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-lin2023evolutionary" class="csl-entry" role="listitem">
+Lin, Zeming, Halil Akin, Roshan Rao, Brian Hie, Zhongkai Zhu, Wenting Lu, Nikita Smetanin, et al. 2023. <span>“Evolutionary-Scale Prediction of Atomic-Level Protein Structure with a Language Model.”</span> <em>Science</em> 379 (6637): 1123–30.
+</div>
+<div id="ref-wu2019machine" class="csl-entry" role="listitem">
+Wu, Zachary, SB Jennifer Kan, Russell D Lewis, Bruce J Wittmann, and Frances H Arnold. 2019. <span>“Machine Learning-Assisted Directed Protein Evolution with Combinatorial Libraries.”</span> <em>Proceedings of the National Academy of Sciences</em> 116 (18): 8852–58.
+</div>
+</div></section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
